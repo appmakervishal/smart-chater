@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>P2P WebRTC Chat with QR Code</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 1rem; }
+  textarea, input, select, button { font-size: 1rem; margin-top: 0.5rem; width: 100%; }
+  #log { height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 0.5rem; white-space: pre-wrap; background: #f9f9f9; }
+  #manualArea, #autoArea { margin-top: 1rem; }
+  canvas { display: none; }
+  #qrCode, #remoteQR { margin-top: 0.5rem; }
+  #qrScanner { display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; flex-direction: column; }
+  #qrScanner video { width: 90vw; max-width: 400px; border: 2px solid white; }
+  #qrScanner button { margin-top: 1rem; padding: 0.5rem 1rem; font-size: 1rem; }
+</style>
+</head>
+<body>
+
+<h2>P2P Chat (No Server Storage) with QR Code SDP Exchange</h2>
+
+<label for="modeSelect">Connection Mode:</label>
+<select id="modeSelect">
+  <option value="manual">Manual SDP Exchange + QR Codes</option>
+  <option value="auto">Auto via Public Signaling Server</option>
+</select>
+
+<div id="manualArea">
+  <label>Your SDP (local offer/answer):</label>
+  <textarea id="localSDP" rows="6" readonly></textarea>
+  <div id="qrCode"></div>
+  <button id="copyLocalSDP">Copy Local SDP</button>
+
+  <label>Paste Remote SDP:</label>
+  <textarea id="remoteSDP" rows="6" placeholder="Paste remote SDP here"></textarea>
+  <div id="remoteQR"></div>
+  <button id="pasteRemoteSDP">Set Remote SDP</button>
+  <button id="scanQRBtn">Scan Remote SDP QR</button>
+</div>
+
+<div id="autoArea" style="display:none;">
+  <label>Room ID (choose any):</label>
+  <input id="roomInput" placeholder="Enter room ID" />
+  <button id="joinRoomBtn">Join Room</button>
+</div>
+
+<label for="messageInput">Message:</label>
+<input type="text" id="messageInput" disabled placeholder="Enter message" />
+<button id="sendBtn" disabled>Send</button>
+
+<h3>Chat log:</h3>
+<pre id="log"></pre>
+
+<!-- QR Scanner overlay -->
+<div id="qrScanner">
+  <video id="video" autoplay></video>
+  <button id="closeScanner">Close Scanner</button>
+  <canvas id="canvas"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script>
+const modeSelect = document.getElementById('modeSelect');
+
+const manualArea = document.getElementById('manualArea');
+const autoArea = document.getElementById('autoArea');
+
+const localSDP = document.getElementById('localSDP');
+const remoteSDP = document.getElementById('remoteSDP');
+
+const copyLocalSDP = document.getElementById('copyLocalSDP');
+const pasteRemoteSDP = document.getElementById('pasteRemoteSDP');
+const scanQRBtn = document.getElementById('scanQRBtn');
+
+const qrCodeContainer = document.getElementById('qrCode');
+const remoteQRContainer = document.getElementById('remoteQR');
+
+const roomInput = document.getElementById('roomInput');
+const joinRoomBtn = document.getElementById('joinRoomBtn');
+
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+
+const logElem = document.getElementById('log');
+
+const qrScanner = document.getElementById('qrScanner');
+const video = document.getElementById('video');
+const closeScanner = document.getElementById('closeScanner');
+const canvas = document.getElementById('canvas');
+
+let pc = null;
+let dataChannel = null;
+let ws = null;
+let roomId = null;
+
+function log(msg) {
+  logElem.textContent += msg + '\n';
+  logElem.scrollTop = logElem.scrollHeight;
+}
+
+// Generate QR code for a given text
+function generateQRCode(text, container) {
+  container.innerHTML = '';
+  QRCode.toCanvas(document.createElement('canvas'), text, { width: 150 }, function (error, canvas) {
+    if (error) return log('QR generation error: ' + error);
+    container.appendChild(canvas);
+  });
+}
+
+// Reset connection and UI states
+function reset() {
+  if (pc) {
+    pc.close();
+    pc = null;
+  }
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  dataChannel = null;
+  localSDP.value = '';
+  remoteSDP.value = '';
+  qrCodeContainer.innerHTML = '';
+  remoteQRContainer.innerHTML = '';
+  messageInput.value = '';
+  messageInput.disabled = true;
+  sendBtn.disabled = true;
+  log('Connection reset.');
+}
+
+// Setup WebRTC peer connection and data channel for manual mode
+async function setupManual() {
+  reset();
+  pc = new RTCPeerConnection();
+
+  pc.onicecandidate = e => {
+    if (!e.candidate) return;
+    // Wait for ICE gathering to finish before showing SDP
+  };
+
+  pc.onicegatheringstatechange = () => {
+    if (pc.iceGatheringState === 'complete') {
+      localSDP.value = JSON.stringify(pc.localDescription);
+      generateQRCode(localSDP.value, qrCodeContainer);
+      log('Local SDP created. Share it with peer.');
+    }
+  };
+
+  dataChannel = pc.createDataChannel('chat');
+
+  dataChannel.onopen = () => {
+    log('Data channel opened.');
+    messageInput.disabled = false;
+    sendBtn.disabled = false;
+  };
+
+  dataChannel.onclose = () => {
+    log('Data channel closed.');
+    messageInput.disabled = true;
+    sendBtn.disabled = true;
+  };
+
+  dataChannel.onmessage = e => {
+    log('Peer: ' + e.data);
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+}
+
+// Handle setting remote SDP manually
+pasteRemoteSDP.onclick = async () => {
+  if (!pc) {
+    alert('Start connection first.');
+    return;
+  }
+  if (!remoteSDP.value.trim()) {
+    alert('Paste remote SDP first.');
+    return;
+  }
+  try {
+    const desc = new RTCSessionDescription(JSON.parse(remoteSDP.value));
+    await pc.setRemoteDescription(desc);
+    log('Remote SDP set.');
+    if (desc.type === 'offer') {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      localSDP.value = JSON.stringify(pc.localDescription);
+      generateQRCode(localSDP.value, qrCodeContainer);
+      log('Sent answer SDP.');
+    }
+  } catch {
+    alert('Invalid SDP JSON');
+  }
+};
+
+// Send message on button click or Enter
+sendBtn.onclick = () => {
+  const msg = messageInput.value.trim();
+  if (!msg || !dataChannel || dataChannel.readyState !== 'open') return;
+  dataChannel.send(msg);
+  log('You: ' + msg);
+  messageInput.value = '';
+};
+messageInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendBtn.click();
+});
+
+// Manual mode initialization
+function manualInit() {
+  reset();
+  setupManual();
+}
+manualInit();
+
+// Mode switch logic
+modeSelect.onchange = () => {
+  if (modeSelect.value === 'manual') {
+    manualArea.style.display = 'block';
+    autoArea.style.display = 'none';
+    manualInit();
+  } else {
+    manualArea.style.display = 'none';
+    autoArea.style.display = 'block';
+    reset();
+  }
+};
+modeSelect.dispatchEvent(new Event('change'));
+
+// --- Auto mode (simple signaling server) ---
+
+joinRoomBtn.onclick = () => {
+  if (!roomInput.value.trim()) {
+    alert('Enter a room ID');
+    return;
+  }
+  reset();
+  roomId = roomInput.value.trim();
+  messageInput.disabled = true;
+  sendBtn.disabled = true;
+  ws = new WebSocket('wss://signaling.simplewebrtc.com');
+
+  pc = new RTCPeerConnection();
+
+  pc.onicecandidate = e => {
+    if (e.candidate) return;
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ room: roomId, desc: pc.localDescription }));
+    }
+  };
+
+  ws.onopen = () => {
+    log('Connected to signaling server.');
+    dataChannel = pc.createDataChannel('chat');
+    dataChannel.onopen = () => {
+      log('Data channel opened.');
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+    };
+    dataChannel.onmessage = e => log('Peer: ' + e.data);
+    dataChannel.onclose = () => {
+      log('Data channel closed.');
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+    };
+
+    pc.createOffer()
+      .then(offer => pc.setLocalDescription(offer));
+  };
+
+  ws.onmessage = async e => {
+    const data = JSON.parse(e.data);
+    if (!data.desc) return;
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.desc));
+      if (data.desc.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ room: roomId, desc: pc.localDescription }));
+      }
+    } catch (err) {
+      log('Error setting remote SDP: ' + err);
+    }
+  };
+
+  pc.ondatachannel = e => {
+    dataChannel = e.channel;
+    dataChannel.onopen = () => {
+      log('Data channel opened.');
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+    };
+    dataChannel.onmessage = e => log('Peer: ' + e.data);
+    dataChannel.onclose = () => {
+      log('Data channel closed.');
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+    };
+  };
+};
+
+// --- QR Code Scanner ---
+
+let scanning = false;
+let videoStream = null;
+
+scanQRBtn.onclick = async () => {
+  qrScanner.style.display = 'flex';
+  scanning = true;
+
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = videoStream;
+    video.setAttribute('playsinline', true);
+    await video.play();
+    scanFrame();
+  } catch (err) {
+    alert('Could not access camera: ' + err);
+    stopScan();
+  }
+};
+
+closeScanner.onclick = () => {
+  stopScan();
+};
+
+function stopScan() {
+  scanning = false;
+  qrScanner.style.display = 'none';
+  if (videoStream) {
+    videoStream.getTracks().forEach(t => t.stop());
+  }
+}
+
+function scanFrame() {
+  if (!scanning) return;
+
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
+    if (code && code.data) {
+      remoteSDP.value = code.data;
+      log('QR code scanned: Remote SDP pasted.');
+      stopScan();
+    }
+  }
+  requestAnimationFrame(scanFrame);
+}
+
+// Copy local SDP button
+copyLocalSDP.onclick = () => {
+  if (!localSDP.value) return alert('No local SDP to copy');
+  navigator.clipboard.writeText(localSDP.value).then(() => alert('Local SDP copied to clipboard.'));
+};
+</script>
+
+</body>
+</html>
