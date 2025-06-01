@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audio Stream</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: var(--bg);
+      color: var(--fg);
+      transition: background 0.3s, color 0.3s;
+    }
+    :root {
+      --bg: #f0f0f0;
+      --fg: #222;
+      --btn-bg: #007bff;
+      --btn-fg: #fff;
+    }
+    body.dark {
+      --bg: #121212;
+      --fg: #eee;
+      --btn-bg: #3399ff;
+      --btn-fg: #222;
+    }
+    section {
+      max-width: 600px;
+      margin: auto;
+    }
+    label {
+      display: block;
+      margin: 15px 0 5px;
+      font-weight: bold;
+    }
+    textarea {
+      width: 100%;
+      height: 80px;
+      font-family: monospace;
+      resize: vertical;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 15px;
+      background: var(--btn-bg);
+      color: var(--btn-fg);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+    }
+    audio {
+      margin-top: 20px;
+      width: 100%;
+      outline: none;
+    }
+    #darkToggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 6px 10px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <button id="darkToggle">Toggle Dark Mode</button>
+  <h2>Audio Stream</h2>
+
+  <section>
+    <label for="localSDP">Your SDP (share with friend)</label>
+    <textarea id="localSDP" readonly placeholder="Copy & share with your friend..."></textarea>
+
+    <label for="remoteSDP">Friend's SDP (paste here)</label>
+    <textarea id="remoteSDP" placeholder="Paste friend's SDP here..."></textarea>
+
+    <button id="createOfferAnswer">Create Offer / Answer</button>
+    <button id="setRemote">Set Remote SDP</button>
+  </section>
+
+  <audio id="remoteAudio" autoplay controls></audio>
+
+  <script>
+    const localSDP = document.getElementById('localSDP');
+    const remoteSDP = document.getElementById('remoteSDP');
+    const createOfferAnswerBtn = document.getElementById('createOfferAnswer');
+    const setRemoteBtn = document.getElementById('setRemote');
+    const remoteAudio = document.getElementById('remoteAudio');
+
+    let pc = null;
+    let localStream = null;
+
+    async function startLocalStream() {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+
+    async function createPeerConnection() {
+      pc = new RTCPeerConnection();
+
+      if(localStream){
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      }
+
+      pc.ontrack = e => {
+        remoteAudio.srcObject = e.streams[0];
+      };
+
+      pc.onicecandidate = e => {
+        if(e.candidate === null){
+          localSDP.value = JSON.stringify(pc.localDescription);
+        }
+      };
+    }
+
+    async function createOfferAnswer() {
+      await startLocalStream();
+      await createPeerConnection();
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      localSDP.value = JSON.stringify(pc.localDescription);
+    }
+
+    async function setRemoteDescription() {
+      if(!pc) await createPeerConnection();
+
+      if(!remoteSDP.value) return alert('Paste remote SDP first!');
+      try {
+        const desc = new RTCSessionDescription(JSON.parse(remoteSDP.value));
+        await pc.setRemoteDescription(desc);
+
+        if(desc.type === 'offer'){
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          localSDP.value = JSON.stringify(pc.localDescription);
+        }
+      } catch (e) {
+        alert('Invalid SDP: ' + e.message);
+      }
+    }
+
+    createOfferAnswerBtn.onclick = createOfferAnswer;
+    setRemoteBtn.onclick = setRemoteDescription;
+
+    // Dark mode toggle
+    const toggle = document.getElementById('darkToggle');
+    toggle.onclick = () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('dark', document.body.classList.contains('dark'));
+    };
+    if(localStorage.getItem('dark') === 'true'){
+      document.body.classList.add('dark');
+    }
+  </script>
+</body>
+</html>
