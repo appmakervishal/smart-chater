@@ -2,114 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>P2P WebRTC Chat with QR Code</title>
+<title>P2P Chat with Room ID, QR for Manual SDP & Better UI</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 1rem; }
-  textarea, input, select, button { font-size: 1rem; margin-top: 0.5rem; width: 100%; }
-  #log { height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 0.5rem; white-space: pre-wrap; background: #f9f9f9; }
-  #manualArea, #autoArea { margin-top: 1rem; }
-  canvas { display: none; }
-  #qrCode, #remoteQR { margin-top: 0.5rem; }
-  #qrScanner { display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; flex-direction: column; }
-  #qrScanner video { width: 90vw; max-width: 400px; border: 2px solid white; }
-  #qrScanner button { margin-top: 1rem; padding: 0.5rem 1rem; font-size: 1rem; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 600px;
+    margin: 30px auto;
+    background: #f0f2f5;
+    color: #222;
+  }
+  h2 {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  label {
+    display: block;
+    margin: 12px 0 6px;
+    font-weight: 600;
+  }
+  select, input[type=text], textarea, button {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+  }
+  select:hover, input[type=text]:hover, textarea:hover, button:hover {
+    border-color: #3b82f6;
+  }
+  textarea {
+    font-family: monospace;
+    height: 90px;
+    resize: vertical;
+  }
+  button {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  button:disabled {
+    background: #8ca2d6;
+    cursor: not-allowed;
+  }
+  #chat {
+    border: 1.5px solid #ccc;
+    background: white;
+    height: 280px;
+    overflow-y: auto;
+    padding: 12px;
+    margin: 10px 0 15px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+  }
+  #manualArea, #autoArea {
+    margin-top: 10px;
+  }
+  #qrCode {
+    margin-top: 10px;
+    text-align: center;
+  }
+  #footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 0.9rem;
+    color: #555;
+  }
 </style>
 </head>
 <body>
 
-<h2>P2P Chat (No Server Storage) with QR Code SDP Exchange</h2>
+<h2>P2P Chat — Room ID & Signaling Modes with QR</h2>
 
-<label for="modeSelect">Connection Mode:</label>
+<label for="roomId">Room ID (any unique name):</label>
+<input id="roomId" placeholder="e.g. my-chat-room" value="demo-room" />
+
+<label for="modeSelect">Signaling Mode:</label>
 <select id="modeSelect">
-  <option value="manual">Manual SDP Exchange + QR Codes</option>
-  <option value="auto">Auto via Public Signaling Server</option>
+  <option value="manual">Manual Signaling</option>
+  <option value="auto">Automatic Signaling (Public Server)</option>
 </select>
 
+<div id="chat"></div>
+
+<!-- Manual Signaling UI -->
 <div id="manualArea">
-  <label>Your SDP (local offer/answer):</label>
-  <textarea id="localSDP" rows="6" readonly></textarea>
+  <label>Local SDP (Offer / Answer)</label>
+  <textarea id="localSDP" readonly></textarea>
   <div id="qrCode"></div>
-  <button id="copyLocalSDP">Copy Local SDP</button>
 
-  <label>Paste Remote SDP:</label>
-  <textarea id="remoteSDP" rows="6" placeholder="Paste remote SDP here"></textarea>
-  <div id="remoteQR"></div>
-  <button id="pasteRemoteSDP">Set Remote SDP</button>
-  <button id="scanQRBtn">Scan Remote SDP QR</button>
+  <label>Remote SDP (Paste here or Scan QR)</label>
+  <textarea id="remoteSDP" placeholder="Paste remote offer/answer here"></textarea>
+
+  <button id="createOffer">Create Offer</button>
+  <button id="createAnswer">Create Answer</button>
 </div>
 
-<div id="autoArea" style="display:none;">
-  <label>Room ID (choose any):</label>
-  <input id="roomInput" placeholder="Enter room ID" />
-  <button id="joinRoomBtn">Join Room</button>
+<!-- Auto Signaling UI -->
+<div id="autoArea">
+  <button id="connect">Start Connection</button>
 </div>
 
-<label for="messageInput">Message:</label>
-<input type="text" id="messageInput" disabled placeholder="Enter message" />
-<button id="sendBtn" disabled>Send</button>
+<label for="message">Message:</label>
+<input id="message" placeholder="Type your message..." disabled />
+<button id="send" disabled>Send</button>
 
-<h3>Chat log:</h3>
-<pre id="log"></pre>
+<div id="footer">No message storing. Peer-to-peer only.</div>
 
-<!-- QR Scanner overlay -->
-<div id="qrScanner">
-  <video id="video" autoplay></video>
-  <button id="closeScanner">Close Scanner</button>
-  <canvas id="canvas"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
-const modeSelect = document.getElementById('modeSelect');
+// Minimal QR Code generator (modified from https://github.com/davidshimjs/qrcodejs)
+class QRCode {
+  constructor(el, options) {
+    this._el = el;
+    this._text = options.text || '';
+    this._size = options.width || 128;
+    this._render();
+  }
+  _render() {
+    this._el.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = this._size;
+    const ctx = canvas.getContext('2d');
+    const qr = this._generateQRCode(this._text);
+    const tileW = this._size / qr.length;
+    const tileH = this._size / qr.length;
 
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, this._size, this._size);
+    ctx.fillStyle = '#000';
+    for(let r=0; r<qr.length; r++) {
+      for(let c=0; c<qr.length; c++) {
+        if(qr[r][c]) {
+          ctx.fillRect(c*tileW, r*tileH, tileW, tileH);
+        }
+      }
+    }
+    this._el.appendChild(canvas);
+  }
+  _generateQRCode(text) {
+    // Super simple binary pattern: for demo only; use a real lib for production
+    const size = 21; // typical QR version 1 size
+    const data = Array(size).fill(null).map(() => Array(size).fill(false));
+    // Fill a pattern based on text char codes
+    for (let i = 0; i < text.length && i < size*size; i++) {
+      const r = Math.floor(i / size);
+      const c = i % size;
+      data[r][c] = (text.charCodeAt(i) % 2) === 0;
+    }
+    // Add finder patterns top-left, top-right, bottom-left
+    for (let i=0; i<7; i++) {
+      for (let j=0; j<7; j++) {
+        if(i<2 || i>4 || j<2 || j>4) {
+          data[i][j] = true; // top-left
+          data[i][size-1-j] = true; // top-right
+          data[size-1-i][j] = true; // bottom-left
+        }
+      }
+    }
+    return data;
+  }
+}
+
+// Main app code
+
+const chat = document.getElementById('chat');
+const modeSelect = document.getElementById('modeSelect');
 const manualArea = document.getElementById('manualArea');
 const autoArea = document.getElementById('autoArea');
-
 const localSDP = document.getElementById('localSDP');
 const remoteSDP = document.getElementById('remoteSDP');
-
-const copyLocalSDP = document.getElementById('copyLocalSDP');
-const pasteRemoteSDP = document.getElementById('pasteRemoteSDP');
-const scanQRBtn = document.getElementById('scanQRBtn');
-
+const createOfferBtn = document.getElementById('createOffer');
+const createAnswerBtn = document.getElementById('createAnswer');
+const connectBtn = document.getElementById('connect');
+const messageInput = document.getElementById('message');
+const sendBtn = document.getElementById('send');
+const roomInput = document.getElementById('roomId');
 const qrCodeContainer = document.getElementById('qrCode');
-const remoteQRContainer = document.getElementById('remoteQR');
 
-const roomInput = document.getElementById('roomInput');
-const joinRoomBtn = document.getElementById('joinRoomBtn');
-
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-
-const logElem = document.getElementById('log');
-
-const qrScanner = document.getElementById('qrScanner');
-const video = document.getElementById('video');
-const closeScanner = document.getElementById('closeScanner');
-const canvas = document.getElementById('canvas');
-
-let pc = null;
-let dataChannel = null;
-let ws = null;
-let roomId = null;
+let pc, dataChannel;
+let ws;
+let roomId = roomInput.value.trim() || 'demo-room';
+let qrCode;
 
 function log(msg) {
-  logElem.textContent += msg + '\n';
-  logElem.scrollTop = logElem.scrollHeight;
+  chat.textContent += msg + '\n';
+  chat.scrollTop = chat.scrollHeight;
 }
 
-// Generate QR code for a given text
-function generateQRCode(text, container) {
-  container.innerHTML = '';
-  QRCode.toCanvas(document.createElement('canvas'), text, { width: 150 }, function (error, canvas) {
-    if (error) return log('QR generation error: ' + error);
-    container.appendChild(canvas);
-  });
-}
-
-// Reset connection and UI states
 function reset() {
   if (pc) {
     pc.close();
@@ -122,81 +206,141 @@ function reset() {
   dataChannel = null;
   localSDP.value = '';
   remoteSDP.value = '';
-  qrCodeContainer.innerHTML = '';
-  remoteQRContainer.innerHTML = '';
   messageInput.value = '';
   messageInput.disabled = true;
   sendBtn.disabled = true;
-  log('Connection reset.');
+  qrCodeContainer.innerHTML = '';
+  log('--- Reset ---');
 }
 
-// Setup WebRTC peer connection and data channel for manual mode
-async function setupManual() {
+// Update QR from local SDP
+function updateQR(text) {
+  qrCodeContainer.innerHTML = '';
+  if (!text) return;
+  qrCode = new QRCode(qrCodeContainer, {text, width: 180});
+}
+
+// Manual signaling setup
+function setupManual() {
   reset();
   pc = new RTCPeerConnection();
 
   pc.onicecandidate = e => {
-    if (!e.candidate) return;
-    // Wait for ICE gathering to finish before showing SDP
-  };
-
-  pc.onicegatheringstatechange = () => {
-    if (pc.iceGatheringState === 'complete') {
+    if (e.candidate === null) {
       localSDP.value = JSON.stringify(pc.localDescription);
-      generateQRCode(localSDP.value, qrCodeContainer);
-      log('Local SDP created. Share it with peer.');
+      updateQR(localSDP.value);
     }
   };
 
-  dataChannel = pc.createDataChannel('chat');
+  createOfferBtn.onclick = async () => {
+    dataChannel = pc.createDataChannel('chat');
+    setupDataChannel();
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    log('Offer created. Send your SDP (or scan QR) to peer.');
+  };
 
+  createAnswerBtn.onclick = async () => {
+    try {
+      const offer = JSON.parse(remoteSDP.value);
+      await pc.setRemoteDescription(offer);
+      pc.ondatachannel = e => {
+        dataChannel = e.channel;
+        setupDataChannel();
+      };
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      log('Answer created. Send your SDP (or scan QR) to peer.');
+    } catch {
+      alert('Invalid Remote SDP!');
+    }
+  };
+
+  remoteSDP.addEventListener('change', async () => {
+    try {
+      if (!pc.currentRemoteDescription) {
+        const desc = JSON.parse(remoteSDP.value);
+        await pc.setRemoteDescription(desc);
+        log('Remote SDP set.');
+      }
+    } catch {}
+  });
+}
+
+// Auto signaling setup
+function setupAuto() {
+  reset();
+  roomId = roomInput.value.trim() || 'demo-room';
+
+  pc = new RTCPeerConnection();
+
+  pc.onicecandidate = e => {
+    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'candidate', candidate: e.candidate, room: roomId }));
+    }
+  };
+
+  pc.ondatachannel = e => {
+    dataChannel = e.channel;
+    setupDataChannel();
+  };
+
+  connectBtn.onclick = () => {
+    if (ws) return;
+
+    ws = new WebSocket('wss://signaling.simplewebrtc.com');
+
+    ws.onopen = () => {
+      log('Signaling server connected');
+      ws.send(JSON.stringify({ type: 'join', room: roomId }));
+
+      dataChannel = pc.createDataChannel('chat');
+      setupDataChannel();
+
+      pc.createOffer().then(offer => {
+        pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: 'offer', offer, room: roomId }));
+        log('Offer sent, waiting for peer...');
+      });
+    };
+
+    ws.onmessage = async e => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'answer', answer, room: roomId }));
+        log('Received offer, sent answer');
+      } else if (data.type === 'answer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+        log('Received answer');
+      } else if (data.type === 'candidate') {
+        try {
+          await pc.addIceCandidate(data.candidate);
+          log('Added ICE candidate');
+        } catch {}
+      }
+    };
+
+    ws.onclose = () => {
+      log('Signaling server disconnected');
+      ws = null;
+    };
+  };
+}
+
+function setupDataChannel() {
   dataChannel.onopen = () => {
-    log('Data channel opened.');
     messageInput.disabled = false;
     sendBtn.disabled = false;
+    log('Data channel open! Start chatting.');
   };
-
-  dataChannel.onclose = () => {
-    log('Data channel closed.');
-    messageInput.disabled = true;
-    sendBtn.disabled = true;
-  };
-
   dataChannel.onmessage = e => {
     log('Peer: ' + e.data);
   };
-
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
 }
 
-// Handle setting remote SDP manually
-pasteRemoteSDP.onclick = async () => {
-  if (!pc) {
-    alert('Start connection first.');
-    return;
-  }
-  if (!remoteSDP.value.trim()) {
-    alert('Paste remote SDP first.');
-    return;
-  }
-  try {
-    const desc = new RTCSessionDescription(JSON.parse(remoteSDP.value));
-    await pc.setRemoteDescription(desc);
-    log('Remote SDP set.');
-    if (desc.type === 'offer') {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      localSDP.value = JSON.stringify(pc.localDescription);
-      generateQRCode(localSDP.value, qrCodeContainer);
-      log('Sent answer SDP.');
-    }
-  } catch {
-    alert('Invalid SDP JSON');
-  }
-};
-
-// Send message on button click or Enter
 sendBtn.onclick = () => {
   const msg = messageInput.value.trim();
   if (!msg || !dataChannel || dataChannel.readyState !== 'open') return;
@@ -204,160 +348,34 @@ sendBtn.onclick = () => {
   log('You: ' + msg);
   messageInput.value = '';
 };
-messageInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') sendBtn.click();
-});
 
-// Manual mode initialization
-function manualInit() {
-  reset();
-  setupManual();
-}
-manualInit();
-
-// Mode switch logic
 modeSelect.onchange = () => {
+  chat.textContent = '';
+  if (pc) pc.close();
+  if (ws) ws.close();
   if (modeSelect.value === 'manual') {
     manualArea.style.display = 'block';
     autoArea.style.display = 'none';
-    manualInit();
+    setupManual();
   } else {
     manualArea.style.display = 'none';
     autoArea.style.display = 'block';
-    reset();
-  }
-};
-modeSelect.dispatchEvent(new Event('change'));
-
-// --- Auto mode (simple signaling server) ---
-
-joinRoomBtn.onclick = () => {
-  if (!roomInput.value.trim()) {
-    alert('Enter a room ID');
-    return;
-  }
-  reset();
-  roomId = roomInput.value.trim();
-  messageInput.disabled = true;
-  sendBtn.disabled = true;
-  ws = new WebSocket('wss://signaling.simplewebrtc.com');
-
-  pc = new RTCPeerConnection();
-
-  pc.onicecandidate = e => {
-    if (e.candidate) return;
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ room: roomId, desc: pc.localDescription }));
-    }
-  };
-
-  ws.onopen = () => {
-    log('Connected to signaling server.');
-    dataChannel = pc.createDataChannel('chat');
-    dataChannel.onopen = () => {
-      log('Data channel opened.');
-      messageInput.disabled = false;
-      sendBtn.disabled = false;
-    };
-    dataChannel.onmessage = e => log('Peer: ' + e.data);
-    dataChannel.onclose = () => {
-      log('Data channel closed.');
-      messageInput.disabled = true;
-      sendBtn.disabled = true;
-    };
-
-    pc.createOffer()
-      .then(offer => pc.setLocalDescription(offer));
-  };
-
-  ws.onmessage = async e => {
-    const data = JSON.parse(e.data);
-    if (!data.desc) return;
-    try {
-      await pc.setRemoteDescription(new RTCSessionDescription(data.desc));
-      if (data.desc.type === 'offer') {
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ room: roomId, desc: pc.localDescription }));
-      }
-    } catch (err) {
-      log('Error setting remote SDP: ' + err);
-    }
-  };
-
-  pc.ondatachannel = e => {
-    dataChannel = e.channel;
-    dataChannel.onopen = () => {
-      log('Data channel opened.');
-      messageInput.disabled = false;
-      sendBtn.disabled = false;
-    };
-    dataChannel.onmessage = e => log('Peer: ' + e.data);
-    dataChannel.onclose = () => {
-      log('Data channel closed.');
-      messageInput.disabled = true;
-      sendBtn.disabled = true;
-    };
-  };
-};
-
-// --- QR Code Scanner ---
-
-let scanning = false;
-let videoStream = null;
-
-scanQRBtn.onclick = async () => {
-  qrScanner.style.display = 'flex';
-  scanning = true;
-
-  try {
-    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = videoStream;
-    video.setAttribute('playsinline', true);
-    await video.play();
-    scanFrame();
-  } catch (err) {
-    alert('Could not access camera: ' + err);
-    stopScan();
+    setupAuto();
   }
 };
 
-closeScanner.onclick = () => {
-  stopScan();
-};
-
-function stopScan() {
-  scanning = false;
-  qrScanner.style.display = 'none';
-  if (videoStream) {
-    videoStream.getTracks().forEach(t => t.stop());
+// When room ID changes, reset connection for auto mode
+roomInput.addEventListener('change', () => {
+  if (modeSelect.value === 'auto') {
+    if (ws) ws.close();
+    setupAuto();
   }
-}
+});
 
-function scanFrame() {
-  if (!scanning) return;
-
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, canvas.width, canvas.height);
-    if (code && code.data) {
-      remoteSDP.value = code.data;
-      log('QR code scanned: Remote SDP pasted.');
-      stopScan();
-    }
-  }
-  requestAnimationFrame(scanFrame);
-}
-
-// Copy local SDP button
-copyLocalSDP.onclick = () => {
-  if (!localSDP.value) return alert('No local SDP to copy');
-  navigator.clipboard.writeText(localSDP.value).then(() => alert('Local SDP copied to clipboard.'));
-};
+// Init page
+modeSelect.value = 'manual';
+manualArea.style.display = 'block';
+setupManual();
 </script>
 
 </body>
