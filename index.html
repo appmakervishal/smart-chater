@@ -1,382 +1,586 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" >
 <head>
-<meta charset="UTF-8" />
-<title>P2P Chat with Room ID, QR for Manual SDP & Better UI</title>
-<style>
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    max-width: 600px;
-    margin: 30px auto;
-    background: #f0f2f5;
-    color: #222;
-  }
-  h2 {
-    text-align: center;
-    margin-bottom: 15px;
-  }
-  label {
-    display: block;
-    margin: 12px 0 6px;
-    font-weight: 600;
-  }
-  select, input[type=text], textarea, button {
-    width: 100%;
-    padding: 10px;
-    font-size: 1rem;
-    border: 1.5px solid #ccc;
-    border-radius: 6px;
-    box-sizing: border-box;
-    transition: border-color 0.3s;
-  }
-  select:hover, input[type=text]:hover, textarea:hover, button:hover {
-    border-color: #3b82f6;
-  }
-  textarea {
-    font-family: monospace;
-    height: 90px;
-    resize: vertical;
-  }
-  button {
-    background: #3b82f6;
-    color: white;
-    border: none;
-    cursor: pointer;
-    margin-top: 10px;
-    border-radius: 6px;
-    font-weight: 600;
-  }
-  button:disabled {
-    background: #8ca2d6;
-    cursor: not-allowed;
-  }
-  #chat {
-    border: 1.5px solid #ccc;
-    background: white;
-    height: 280px;
-    overflow-y: auto;
-    padding: 12px;
-    margin: 10px 0 15px;
-    border-radius: 8px;
-    white-space: pre-wrap;
-  }
-  #manualArea, #autoArea {
-    margin-top: 10px;
-  }
-  #qrCode {
-    margin-top: 10px;
-    text-align: center;
-  }
-  #footer {
-    text-align: center;
-    margin-top: 20px;
-    font-size: 0.9rem;
-    color: #555;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Secure WebRTC Video Chat & File Transfer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0; padding: 0; background: #f9f9f9;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      align-items: center;
+      color: #222;
+      user-select: none;
+    }
+    #container {
+      background: white;
+      width: 600px;
+      max-width: 95vw;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgb(0 0 0 / 0.1);
+      display: flex;
+      flex-direction: column;
+    }
+    h2, h3 {
+      margin: 10px 0 8px;
+      font-weight: 600;
+      color: #1a1a1a;
+      text-align: center;
+    }
+    #loginSection {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    #passwordInput {
+      font-size: 1rem;
+      padding: 10px;
+      width: 100%;
+      max-width: 280px;
+      border: 1.5px solid #ccc;
+      border-radius: 6px;
+      transition: border-color 0.2s ease-in-out;
+    }
+    #passwordInput:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 5px #4a90e2;
+    }
+    #startBtn {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      max-width: 280px;
+      transition: background-color 0.3s ease;
+    }
+    #startBtn:hover:not(:disabled) {
+      background: #357ABD;
+    }
+    #startBtn:disabled {
+      background: #a0c0f7;
+      cursor: not-allowed;
+    }
+    #loginMsg {
+      color: #d03e3e;
+      font-weight: 600;
+      height: 1.2rem;
+      margin-top: 4px;
+      user-select: text;
+    }
+
+    #app {
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+      margin-top: 10px;
+    }
+
+    .videos {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    video {
+      width: 48%;
+      border-radius: 8px;
+      background: black;
+      box-shadow: 0 0 12px rgb(0 0 0 / 0.15);
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+    }
+
+    .section {
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 15px 20px;
+      box-shadow: inset 0 0 5px rgb(0 0 0 / 0.03);
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 5px;
+      display: block;
+      color: #555;
+      user-select: text;
+    }
+
+    textarea {
+      width: 100%;
+      border-radius: 6px;
+      border: 1.5px solid #ccc;
+      resize: vertical;
+      font-family: monospace;
+      font-size: 0.9rem;
+      padding: 8px;
+      min-height: 80px;
+      transition: border-color 0.2s ease-in-out;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 5px #4a90e2;
+    }
+
+    button {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background-color 0.3s ease;
+      width: 100%;
+      user-select: none;
+    }
+    button:hover:not(:disabled) {
+      background: #357abd;
+    }
+    button:disabled {
+      background: #a0c0f7;
+      cursor: not-allowed;
+    }
+
+    #localCandidates, #remoteCandidates {
+      font-family: monospace;
+      min-height: 100px;
+    }
+
+    #chat {
+      background: white;
+      height: 180px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow-y: auto;
+      padding: 10px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      user-select: text;
+    }
+    #chat div {
+      margin-bottom: 8px;
+      max-width: 80%;
+      padding: 6px 12px;
+      border-radius: 16px;
+      word-wrap: break-word;
+      display: inline-block;
+    }
+    .you {
+      background: #4a90e2;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+      margin-left: auto;
+    }
+    .peer {
+      background: #e2e2e2;
+      color: #333;
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+      margin-right: auto;
+    }
+    #chat a {
+      color: #4a90e2;
+      text-decoration: none;
+    }
+    #chat a:hover {
+      text-decoration: underline;
+    }
+
+    #chatInput {
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1.5px solid #ccc;
+      width: 100%;
+      margin-top: 8px;
+      box-sizing: border-box;
+      transition: border-color 0.2s ease-in-out;
+    }
+    #chatInput:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 5px #4a90e2;
+    }
+
+    #fileInput {
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    /* Emoji picker */
+    #emojiBtn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 1.3rem;
+      user-select: none;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+    #emojiPicker {
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      padding: 6px;
+      border-radius: 6px;
+      max-width: 100%;
+      max-height: 120px;
+      overflow-y: auto;
+      display: none;
+      background: white;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+      user-select: none;
+    }
+    #emojiPicker span {
+      font-size: 1.3rem;
+      cursor: pointer;
+      margin: 4px 6px;
+      display: inline-block;
+      transition: transform 0.1s ease-in-out;
+    }
+    #emojiPicker span:hover {
+      transform: scale(1.3);
+    }
+
+    /* Responsive */
+    @media (max-width: 620px) {
+      .videos {
+        flex-direction: column;
+      }
+      video {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        margin-bottom: 10px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <div id="container">
+    <div id="loginSection">
+      <h2>Enter Password</h2>
+      <input id="passwordInput" placeholder="Enter password" type="password" autocomplete="off" />
+      <button id="startBtn">Start</button>
+      <div id="loginMsg"></div>
+    </div>
 
-<h2>P2P Chat — Room ID & Signaling Modes with QR</h2>
+    <div id="app">
+      <h2>Video Call</h2>
+      <div class="videos">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
 
-<label for="roomId">Room ID (any unique name):</label>
-<input id="roomId" placeholder="e.g. my-chat-room" value="demo-room" />
+      <div class="section" aria-label="Signaling section">
+        <h3>Signaling (Copy-Paste Data)</h3>
+        <label for="localOffer">Local Offer / Answer</label>
+        <textarea id="localOffer" readonly></textarea>
 
-<label for="modeSelect">Signaling Mode:</label>
-<select id="modeSelect">
-  <option value="manual">Manual Signaling</option>
-  <option value="auto">Automatic Signaling (Public Server)</option>
-</select>
+        <label for="remoteOffer">Remote Offer / Answer (Paste here)</label>
+        <textarea id="remoteOffer" placeholder="Paste remote offer/answer JSON"></textarea>
+        <button id="setRemoteDescBtn">Set Remote Description</button>
+        <button id="createOfferBtn">Create Offer</button>
 
-<div id="chat"></div>
+        <label for="localCandidates">Local ICE Candidates</label>
+        <textarea id="localCandidates" readonly></textarea>
 
-<!-- Manual Signaling UI -->
-<div id="manualArea">
-  <label>Local SDP (Offer / Answer)</label>
-  <textarea id="localSDP" readonly></textarea>
-  <div id="qrCode"></div>
+        <label for="remoteCandidates">Remote ICE Candidates (Paste JSON array)</label>
+        <textarea id="remoteCandidates" placeholder='Paste remote ICE candidates here'></textarea>
+        <button id="addCandidatesBtn">Add Remote Candidates</button>
+      </div>
 
-  <label>Remote SDP (Paste here or Scan QR)</label>
-  <textarea id="remoteSDP" placeholder="Paste remote offer/answer here"></textarea>
+      <div class="section" aria-label="Chat and file transfer">
+        <h3>Chat & File Transfer</h3>
+        <div id="chat" aria-live="polite" aria-atomic="true"></div>
 
-  <button id="createOffer">Create Offer</button>
-  <button id="createAnswer">Create Answer</button>
-</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <input id="chatInput" placeholder="Type a message or emoji" aria-label="Chat input" autocomplete="off" />
+          <button id="emojiBtn" aria-label="Open emoji picker" title="Emoji picker">😀</button>
+        </div>
+        <div id="emojiPicker" role="list" aria-label="Emoji picker">
+          <!-- Emoji set will be filled by JS -->
+        </div>
+        <button id="sendChatBtn">Send Message</button>
 
-<!-- Auto Signaling UI -->
-<div id="autoArea">
-  <button id="connect">Start Connection</button>
-</div>
+        <label for="fileInput" style="margin-top: 12px; font-weight: 600;">Send a File (max ~500KB recommended)</label>
+        <input type="file" id="fileInput" accept="image/*,audio/*,video/*,application/pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip" />
+        <button id="sendFileBtn">Send File</button>
+      </div>
+    </div>
+  </div>
 
-<label for="message">Message:</label>
-<input id="message" placeholder="Type your message..." disabled />
-<button id="send" disabled>Send</button>
+  <script>
+  (() => {
+    const PASSWORD = 'openSesame';
 
-<div id="footer">No message storing. Peer-to-peer only.</div>
+    const passwordInput = document.getElementById('passwordInput');
+    const startBtn = document.getElementById('startBtn');
+    const loginMsg = document.getElementById('loginMsg');
 
-<script>
-// Minimal QR Code generator (modified from https://github.com/davidshimjs/qrcodejs)
-class QRCode {
-  constructor(el, options) {
-    this._el = el;
-    this._text = options.text || '';
-    this._size = options.width || 128;
-    this._render();
-  }
-  _render() {
-    this._el.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = this._size;
-    const ctx = canvas.getContext('2d');
-    const qr = this._generateQRCode(this._text);
-    const tileW = this._size / qr.length;
-    const tileH = this._size / qr.length;
+    const appDiv = document.getElementById('app');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
 
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, this._size, this._size);
-    ctx.fillStyle = '#000';
-    for(let r=0; r<qr.length; r++) {
-      for(let c=0; c<qr.length; c++) {
-        if(qr[r][c]) {
-          ctx.fillRect(c*tileW, r*tileH, tileW, tileH);
-        }
+    const createOfferBtn = document.getElementById('createOfferBtn');
+    const localOffer = document.getElementById('localOffer');
+    const remoteOffer = document.getElementById('remoteOffer');
+    const setRemoteDescBtn = document.getElementById('setRemoteDescBtn');
+
+    const localCandidates = document.getElementById('localCandidates');
+    const remoteCandidates = document.getElementById('remoteCandidates');
+    const addCandidatesBtn = document.getElementById('addCandidatesBtn');
+
+    const chatDiv = document.getElementById('chat');
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPicker = document.getElementById('emojiPicker');
+
+    let pc;
+    let dc;
+    let localStream;
+    let gatheredCandidates = [];
+
+    const emojis = ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥳','🤩'];
+
+    function showLoginError(msg) {
+      loginMsg.textContent = msg;
+    }
+
+    function clearLoginError() {
+      loginMsg.textContent = '';
+    }
+
+    function appendChatMessage(text, fromYou = true) {
+      const div = document.createElement('div');
+      div.className = fromYou ? 'you' : 'peer';
+      div.textContent = text;
+
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    function appendChatHTML(html, fromYou = true) {
+      const div = document.createElement('div');
+      div.className = fromYou ? 'you' : 'peer';
+      div.innerHTML = html;
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    function enableApp() {
+      document.getElementById('loginSection').style.display = 'none';
+      appDiv.style.display = 'flex';
+    }
+
+    startBtn.onclick = () => {
+      if (passwordInput.value === PASSWORD) {
+        clearLoginError();
+        enableApp();
+        init();
+      } else {
+        showLoginError('Incorrect password');
       }
-    }
-    this._el.appendChild(canvas);
-  }
-  _generateQRCode(text) {
-    // Super simple binary pattern: for demo only; use a real lib for production
-    const size = 21; // typical QR version 1 size
-    const data = Array(size).fill(null).map(() => Array(size).fill(false));
-    // Fill a pattern based on text char codes
-    for (let i = 0; i < text.length && i < size*size; i++) {
-      const r = Math.floor(i / size);
-      const c = i % size;
-      data[r][c] = (text.charCodeAt(i) % 2) === 0;
-    }
-    // Add finder patterns top-left, top-right, bottom-left
-    for (let i=0; i<7; i++) {
-      for (let j=0; j<7; j++) {
-        if(i<2 || i>4 || j<2 || j>4) {
-          data[i][j] = true; // top-left
-          data[i][size-1-j] = true; // top-right
-          data[size-1-i][j] = true; // bottom-left
-        }
-      }
-    }
-    return data;
-  }
-}
+    };
 
-// Main app code
+    passwordInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') startBtn.click();
+    });
 
-const chat = document.getElementById('chat');
-const modeSelect = document.getElementById('modeSelect');
-const manualArea = document.getElementById('manualArea');
-const autoArea = document.getElementById('autoArea');
-const localSDP = document.getElementById('localSDP');
-const remoteSDP = document.getElementById('remoteSDP');
-const createOfferBtn = document.getElementById('createOffer');
-const createAnswerBtn = document.getElementById('createAnswer');
-const connectBtn = document.getElementById('connect');
-const messageInput = document.getElementById('message');
-const sendBtn = document.getElementById('send');
-const roomInput = document.getElementById('roomId');
-const qrCodeContainer = document.getElementById('qrCode');
-
-let pc, dataChannel;
-let ws;
-let roomId = roomInput.value.trim() || 'demo-room';
-let qrCode;
-
-function log(msg) {
-  chat.textContent += msg + '\n';
-  chat.scrollTop = chat.scrollHeight;
-}
-
-function reset() {
-  if (pc) {
-    pc.close();
-    pc = null;
-  }
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
-  dataChannel = null;
-  localSDP.value = '';
-  remoteSDP.value = '';
-  messageInput.value = '';
-  messageInput.disabled = true;
-  sendBtn.disabled = true;
-  qrCodeContainer.innerHTML = '';
-  log('--- Reset ---');
-}
-
-// Update QR from local SDP
-function updateQR(text) {
-  qrCodeContainer.innerHTML = '';
-  if (!text) return;
-  qrCode = new QRCode(qrCodeContainer, {text, width: 180});
-}
-
-// Manual signaling setup
-function setupManual() {
-  reset();
-  pc = new RTCPeerConnection();
-
-  pc.onicecandidate = e => {
-    if (e.candidate === null) {
-      localSDP.value = JSON.stringify(pc.localDescription);
-      updateQR(localSDP.value);
-    }
-  };
-
-  createOfferBtn.onclick = async () => {
-    dataChannel = pc.createDataChannel('chat');
-    setupDataChannel();
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    log('Offer created. Send your SDP (or scan QR) to peer.');
-  };
-
-  createAnswerBtn.onclick = async () => {
-    try {
-      const offer = JSON.parse(remoteSDP.value);
-      await pc.setRemoteDescription(offer);
-      pc.ondatachannel = e => {
-        dataChannel = e.channel;
-        setupDataChannel();
-      };
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      log('Answer created. Send your SDP (or scan QR) to peer.');
-    } catch {
-      alert('Invalid Remote SDP!');
-    }
-  };
-
-  remoteSDP.addEventListener('change', async () => {
-    try {
-      if (!pc.currentRemoteDescription) {
-        const desc = JSON.parse(remoteSDP.value);
-        await pc.setRemoteDescription(desc);
-        log('Remote SDP set.');
-      }
-    } catch {}
-  });
-}
-
-// Auto signaling setup
-function setupAuto() {
-  reset();
-  roomId = roomInput.value.trim() || 'demo-room';
-
-  pc = new RTCPeerConnection();
-
-  pc.onicecandidate = e => {
-    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'candidate', candidate: e.candidate, room: roomId }));
-    }
-  };
-
-  pc.ondatachannel = e => {
-    dataChannel = e.channel;
-    setupDataChannel();
-  };
-
-  connectBtn.onclick = () => {
-    if (ws) return;
-
-    ws = new WebSocket('wss://signaling.simplewebrtc.com');
-
-    ws.onopen = () => {
-      log('Signaling server connected');
-      ws.send(JSON.stringify({ type: 'join', room: roomId }));
-
-      dataChannel = pc.createDataChannel('chat');
-      setupDataChannel();
-
-      pc.createOffer().then(offer => {
-        pc.setLocalDescription(offer);
-        ws.send(JSON.stringify({ type: 'offer', offer, room: roomId }));
-        log('Offer sent, waiting for peer...');
+    // Emoji picker setup
+    emojis.forEach(e => {
+      const span = document.createElement('span');
+      span.textContent = e;
+      span.title = e;
+      span.addEventListener('click', () => {
+        chatInput.value += e;
+        chatInput.focus();
       });
+      emojiPicker.appendChild(span);
+    });
+
+    emojiBtn.onclick = () => {
+      emojiPicker.style.display = emojiPicker.style.display === 'block' ? 'none' : 'block';
     };
 
-    ws.onmessage = async e => {
-      const data = JSON.parse(e.data);
-      if (data.type === 'offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type: 'answer', answer, room: roomId }));
-        log('Received offer, sent answer');
-      } else if (data.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-        log('Received answer');
-      } else if (data.type === 'candidate') {
-        try {
-          await pc.addIceCandidate(data.candidate);
-          log('Added ICE candidate');
-        } catch {}
+    function init() {
+      navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(stream => {
+        localStream = stream;
+        localVideo.srcObject = stream;
+
+        setupPeerConnection();
+      }).catch(e => {
+        alert('Could not access camera/microphone: ' + e.message);
+      });
+    }
+
+    function setupPeerConnection() {
+      pc = new RTCPeerConnection({
+        iceServers: [{urls:'stun:stun.l.google.com:19302'}]
+      });
+
+      // Add local tracks
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      pc.ontrack = e => {
+        if (remoteVideo.srcObject !== e.streams[0]) {
+          remoteVideo.srcObject = e.streams[0];
+        }
+      };
+
+      pc.onicecandidate = e => {
+        if (e.candidate) {
+          gatheredCandidates.push(e.candidate.toJSON());
+          localCandidates.value = JSON.stringify(gatheredCandidates, null, 2);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+          appendChatMessage('Peer connected!', false);
+          sendChatBtn.disabled = false;
+          fileInput.disabled = false;
+        }
+      };
+
+      // Setup Data Channel for chat and files
+      dc = pc.createDataChannel('chat');
+      dc.onopen = () => {
+        appendChatMessage('Data channel open. You can chat now.', false);
+        sendChatBtn.disabled = false;
+        fileInput.disabled = false;
+      };
+      dc.onmessage = e => {
+        handleDataChannelMessage(e.data);
+      };
+
+      pc.ondatachannel = event => {
+        dc = event.channel;
+        dc.onmessage = e => handleDataChannelMessage(e.data);
+        dc.onopen = () => {
+          appendChatMessage('Data channel open. You can chat now.', false);
+          sendChatBtn.disabled = false;
+          fileInput.disabled = false;
+        };
+      };
+
+      createOfferBtn.disabled = false;
+      setRemoteDescBtn.disabled = false;
+      addCandidatesBtn.disabled = false;
+      sendChatBtn.disabled = true;
+      fileInput.disabled = true;
+    }
+
+    createOfferBtn.onclick = async () => {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        localOffer.value = JSON.stringify(pc.localDescription);
+      } catch(e) {
+        alert('Error creating offer: ' + e);
       }
     };
 
-    ws.onclose = () => {
-      log('Signaling server disconnected');
-      ws = null;
+    setRemoteDescBtn.onclick = async () => {
+      try {
+        const remoteDesc = JSON.parse(remoteOffer.value);
+        await pc.setRemoteDescription(new RTCSessionDescription(remoteDesc));
+      } catch(e) {
+        alert('Invalid remote description');
+      }
     };
-  };
-}
 
-function setupDataChannel() {
-  dataChannel.onopen = () => {
-    messageInput.disabled = false;
-    sendBtn.disabled = false;
-    log('Data channel open! Start chatting.');
-  };
-  dataChannel.onmessage = e => {
-    log('Peer: ' + e.data);
-  };
-}
+    addCandidatesBtn.onclick = () => {
+      try {
+        const candidatesArr = JSON.parse(remoteCandidates.value);
+        candidatesArr.forEach(cand => pc.addIceCandidate(new RTCIceCandidate(cand)));
+      } catch(e) {
+        alert('Invalid remote candidates');
+      }
+    };
 
-sendBtn.onclick = () => {
-  const msg = messageInput.value.trim();
-  if (!msg || !dataChannel || dataChannel.readyState !== 'open') return;
-  dataChannel.send(msg);
-  log('You: ' + msg);
-  messageInput.value = '';
-};
+    sendChatBtn.onclick = () => {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      if (!dc || dc.readyState !== 'open') {
+        alert('Data channel not open');
+        return;
+      }
+      dc.send(JSON.stringify({type:'text', data: text}));
+      appendChatMessage(text, true);
+      chatInput.value = '';
+    };
 
-modeSelect.onchange = () => {
-  chat.textContent = '';
-  if (pc) pc.close();
-  if (ws) ws.close();
-  if (modeSelect.value === 'manual') {
-    manualArea.style.display = 'block';
-    autoArea.style.display = 'none';
-    setupManual();
-  } else {
-    manualArea.style.display = 'none';
-    autoArea.style.display = 'block';
-    setupAuto();
-  }
-};
+    chatInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatBtn.click();
+      }
+    });
 
-// When room ID changes, reset connection for auto mode
-roomInput.addEventListener('change', () => {
-  if (modeSelect.value === 'auto') {
-    if (ws) ws.close();
-    setupAuto();
-  }
-});
+    fileInput.onchange = () => {
+      if (!fileInput.files.length) return;
+      if (!dc || dc.readyState !== 'open') {
+        alert('Data channel not open');
+        fileInput.value = '';
+        return;
+      }
+      const file = fileInput.files[0];
+      if (file.size > 500*1024) {
+        alert('File too large (max 500KB)');
+        fileInput.value = '';
+        return;
+      }
+      sendFile(file);
+      fileInput.value = '';
+    };
 
-// Init page
-modeSelect.value = 'manual';
-manualArea.style.display = 'block';
-setupManual();
-</script>
+    function sendFile(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = reader.result;
+        dc.send(JSON.stringify({
+          type: 'file',
+          data: data,
+          name: file.name,
+          size: file.size,
+          fileType: file.type
+        }));
+        appendChatHTML(`<b>You sent file:</b> <a href="${data}" download="${file.name}">${file.name}</a>`, true);
+      };
+      reader.readAsDataURL(file);
+    }
 
+    function handleDataChannelMessage(msg) {
+      try {
+        const msgObj = JSON.parse(msg);
+        if (msgObj.type === 'text') {
+          appendChatMessage(msgObj.data, false);
+        } else if (msgObj.type === 'file') {
+          appendChatHTML(`<b>Peer sent file:</b> <a href="${msgObj.data}" download="${msgObj.name}">${msgObj.name}</a>`, false);
+        }
+      } catch {
+        appendChatMessage(msg, false);
+      }
+    }
+  })();
+  </script>
 </body>
 </html>
