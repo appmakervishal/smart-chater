@@ -1,258 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>File Sharing</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: var(--bg);
-      color: var(--fg);
-      transition: background 0.3s, color 0.3s;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    :root {
-      --bg: #f0f0f0;
-      --fg: #222;
-      --btn-bg: #007bff;
-      --btn-fg: #fff;
-      --input-bg: #fff;
-    }
-    body.dark {
-      --bg: #121212;
-      --fg: #eee;
-      --btn-bg: #3399ff;
-      --btn-fg: #222;
-      --input-bg: #222;
-    }
-    label {
-      margin-top: 15px;
-      font-weight: bold;
-      display: block;
-    }
-    textarea {
-      font-family: monospace;
-      width: 100%;
-      height: 80px;
-      padding: 8px;
-      box-sizing: border-box;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: var(--input-bg);
-      color: var(--fg);
-      resize: vertical;
-    }
-    button {
-      margin-top: 10px;
-      padding: 10px 15px;
-      background: var(--btn-bg);
-      color: var(--btn-fg);
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      width: 100%;
-    }
-    #fileInput {
-      margin-top: 10px;
-      width: 100%;
-    }
-    #receivedFiles {
-      margin-top: 15px;
-      border: 1px solid #ccc;
-      background: var(--input-bg);
-      padding: 10px;
-      height: 150px;
-      overflow-y: auto;
-      color: var(--fg);
-      white-space: pre-wrap;
-      word-break: break-word;
-      border-radius: 4px;
-    }
-    #darkToggle {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      padding: 6px 10px;
-      font-size: 0.9rem;
-    }
-  </style>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>File Sharing</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px; max-width: 600px; margin-left: auto; margin-right: auto;
+    background: var(--bg); color: var(--fg);
+    transition: background 0.3s, color 0.3s;
+  }
+  :root {
+    --bg: #f0f0f0; --fg: #222;
+  }
+  body.dark {
+    --bg: #121212; --fg: #eee;
+  }
+  label, button, textarea, input {
+    display: block; width: 100%; margin-top: 10px;
+  }
+  textarea {
+    height: 80px; font-family: monospace; resize: vertical;
+  }
+  #receivedFiles {
+    margin-top: 15px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    height: 150px;
+    overflow-y: auto;
+    background: var(--bg);
+    color: var(--fg);
+    white-space: pre-wrap;
+    border-radius: 5px;
+  }
+  button {
+    padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px;
+    cursor: pointer;
+  }
+  #darkToggle {
+    position: fixed; top: 10px; right: 10px; padding: 6px 10px; font-size: 0.9rem;
+  }
+</style>
 </head>
 <body>
-  <button id="darkToggle">Toggle Dark Mode</button>
-  <h2>File Sharing</h2>
+<button id="darkToggle">Toggle Dark Mode</button>
 
-  <label for="localSDP">Your SDP (share with friend)</label>
-  <textarea id="localSDP" readonly placeholder="Copy & share with your friend..."></textarea>
+<h2>File Sharing</h2>
 
-  <label for="remoteSDP">Friend's SDP (paste here)</label>
-  <textarea id="remoteSDP" placeholder="Paste friend's SDP here..."></textarea>
+<label>Your SDP (share with friend)</label>
+<textarea id="localSDP" readonly placeholder="Copy & share with your friend..."></textarea>
 
-  <button id="createOfferAnswer">Create Offer / Answer</button>
-  <button id="setRemote">Set Remote SDP</button>
+<label>Friend's SDP (paste here)</label>
+<textarea id="remoteSDP" placeholder="Paste friend's SDP here..."></textarea>
 
-  <input type="file" id="fileInput" />
-  <button id="sendFileBtn">Send File</button>
+<button id="createOfferAnswer">Create Offer / Answer</button>
+<button id="setRemote">Set Remote SDP</button>
 
-  <h3>Received Files:</h3>
-  <div id="receivedFiles" aria-live="polite"></div>
+<input type="file" id="fileInput" />
+<button id="sendFileBtn">Send File</button>
 
-  <script>
-    const localSDP = document.getElementById('localSDP');
-    const remoteSDP = document.getElementById('remoteSDP');
-    const createOfferAnswerBtn = document.getElementById('createOfferAnswer');
-    const setRemoteBtn = document.getElementById('setRemote');
-    const fileInput = document.getElementById('fileInput');
-    const sendFileBtn = document.getElementById('sendFileBtn');
-    const receivedFiles = document.getElementById('receivedFiles');
+<h3>Received Files:</h3>
+<div id="receivedFiles" aria-live="polite"></div>
 
-    let pc = null;
-    let dataChannel = null;
+<script>
+  const localSDP = document.getElementById('localSDP');
+  const remoteSDP = document.getElementById('remoteSDP');
+  const createOfferAnswerBtn = document.getElementById('createOfferAnswer');
+  const setRemoteBtn = document.getElementById('setRemote');
+  const fileInput = document.getElementById('fileInput');
+  const sendFileBtn = document.getElementById('sendFileBtn');
+  const receivedFiles = document.getElementById('receivedFiles');
 
-    async function createPeerConnection() {
-      pc = new RTCPeerConnection();
+  let pc = null;
+  let dataChannel = null;
 
-      pc.ondatachannel = e => {
-        dataChannel = e.channel;
-        setupDataChannel();
-      };
+  async function createPeerConnection() {
+    pc = new RTCPeerConnection();
 
-      pc.onicecandidate = e => {
-        if (e.candidate === null) {
-          localSDP.value = JSON.stringify(pc.localDescription);
-        }
-      };
-    }
-
-    function setupDataChannel() {
-      if (!dataChannel) return;
-
-      let receivedBuffers = [];
-      let fileMeta = null;
-
-      dataChannel.onopen = () => {
-        appendLog('System: Data channel open');
-      };
-      dataChannel.onclose = () => {
-        appendLog('System: Data channel closed');
-      };
-      dataChannel.onerror = e => {
-        appendLog('System: Data channel error: ' + e.message);
-      };
-      dataChannel.onmessage = e => {
-        if (typeof e.data === 'string') {
-          // Expect JSON metadata for file info
-          try {
-            fileMeta = JSON.parse(e.data);
-            receivedBuffers = [];
-            appendLog(`Incoming file: ${fileMeta.name} (${(fileMeta.size / 1024).toFixed(2)} KB)`);
-          } catch {
-            appendLog('Received message: ' + e.data);
-          }
-        } else {
-          receivedBuffers.push(e.data);
-          const receivedSize = receivedBuffers.reduce((acc, b) => acc + b.byteLength, 0);
-          appendLog(`Receiving ${fileMeta?.name}: ${receivedSize} / ${fileMeta?.size} bytes`);
-
-          if (fileMeta && receivedSize >= fileMeta.size) {
-            const receivedBlob = new Blob(receivedBuffers);
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(receivedBlob);
-            a.download = fileMeta.name;
-            a.textContent = `Download ${fileMeta.name}`;
-            a.style.display = 'block';
-            receivedFiles.appendChild(a);
-            appendLog(`File ${fileMeta.name} received!`);
-            fileMeta = null;
-            receivedBuffers = [];
-          }
-        }
-      };
-    }
-
-    async function createOfferAnswer() {
-      if (!pc) {
-        await createPeerConnection();
-        dataChannel = pc.createDataChannel('fileTransfer');
-        setupDataChannel();
+    pc.onicecandidate = e => {
+      if (e.candidate === null) {
+        localSDP.value = JSON.stringify(pc.localDescription);
       }
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      localSDP.value = JSON.stringify(pc.localDescription);
-    }
-
-    async function setRemoteDescription() {
-      if (!pc) await createPeerConnection();
-
-      if (!remoteSDP.value) return alert('Paste remote SDP first!');
-      try {
-        const desc = new RTCSessionDescription(JSON.parse(remoteSDP.value));
-        await pc.setRemoteDescription(desc);
-
-        if (desc.type === 'offer') {
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          localSDP.value = JSON.stringify(pc.localDescription);
-        }
-      } catch (e) {
-        alert('Invalid SDP: ' + e.message);
-      }
-    }
-
-    sendFileBtn.onclick = () => {
-      if (!fileInput.files.length) return alert('Select a file first');
-      if (!dataChannel || dataChannel.readyState !== 'open') return alert('Data channel not open');
-
-      const file = fileInput.files[0];
-      const chunkSize = 16384;
-      let offset = 0;
-
-      // Send metadata as JSON string first
-      dataChannel.send(JSON.stringify({ name: file.name, size: file.size }));
-
-      const reader = new FileReader();
-
-      reader.onload = e => {
-        dataChannel.send(e.target.result);
-        offset += e.target.result.byteLength;
-        if (offset < file.size) {
-          readSlice(offset);
-        } else {
-          appendLog(`File ${file.name} sent successfully!`);
-        }
-      };
-
-      reader.onerror = e => {
-        alert('Error reading file: ' + e.target.error);
-      };
-
-      function readSlice(o) {
-        const slice = file.slice(o, o + chunkSize);
-        reader.readAsArrayBuffer(slice);
-      }
-
-      readSlice(0);
     };
 
-    function appendLog(msg) {
-      receivedFiles.textContent += msg + '\n';
-      receivedFiles.scrollTop = receivedFiles.scrollHeight;
+    pc.ondatachannel = e => {
+      dataChannel = e.channel;
+      setupDataChannel();
+    };
+  }
+
+  function setupDataChannel() {
+    if (!dataChannel) return;
+
+    let receivedBuffers = [];
+    let fileMeta = null;
+
+    dataChannel.onopen = () => {
+      appendLog('Data channel open');
+    };
+
+    dataChannel.onclose = () => {
+      appendLog('Data channel closed');
+    };
+
+    dataChannel.onerror = e => {
+      appendLog('Error: ' + e.message);
+    };
+
+    dataChannel.onmessage = e => {
+      if (typeof e.data === 'string') {
+        try {
+          fileMeta = JSON.parse(e.data);
+          receivedBuffers = [];
+          appendLog(`Receiving file: ${fileMeta.name} (${(fileMeta.size/1024).toFixed(2)} KB)`);
+        } catch {
+          appendLog('Message: ' + e.data);
+        }
+      } else {
+        receivedBuffers.push(e.data);
+        const receivedSize = receivedBuffers.reduce((acc, b) => acc + b.byteLength, 0);
+        appendLog(`Received ${receivedSize} / ${fileMeta?.size} bytes`);
+
+        if (fileMeta && receivedSize >= fileMeta.size) {
+          const blob = new Blob(receivedBuffers);
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = fileMeta.name;
+          a.textContent = `Download ${fileMeta.name}`;
+          a.style.display = 'block';
+          receivedFiles.appendChild(a);
+          appendLog(`File received: ${fileMeta.name}`);
+          fileMeta = null;
+          receivedBuffers = [];
+        }
+      }
+    };
+  }
+
+  async function createOfferAnswer() {
+    if (!pc) {
+      await createPeerConnection();
+      dataChannel = pc.createDataChannel('fileTransfer');
+      setupDataChannel();
     }
 
-    // Dark mode toggle
-    const toggle = document.getElementById('darkToggle');
-    toggle.onclick = () => {
-      document.body.classList.toggle('dark');
-      localStorage.setItem('dark', document.body.classList.contains('dark'));
-    };
-    if(localStorage.getItem('dark') === 'true'){
-      document.body.classList.add('dark');
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    localSDP.value = JSON.stringify(pc.localDescription);
+  }
+
+  async function setRemoteDescription() {
+    if (!pc) await createPeerConnection();
+
+    if (!remoteSDP.value) {
+      alert('Paste remote SDP first!');
+      return;
     }
-  </script>
+
+    try {
+      const desc = new RTCSessionDescription(JSON.parse(remoteSDP.value));
+      await pc.setRemoteDescription(desc);
+
+      if (desc.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        localSDP.value = JSON.stringify(pc.localDescription);
+      }
+    } catch (e) {
+      alert('Invalid SDP: ' + e.message);
+    }
+  }
+
+  sendFileBtn.onclick = () => {
+    if (!fileInput.files.length) return alert('Select a file first');
+    if (!dataChannel || dataChannel.readyState !== 'open') return alert('Data channel not open');
+
+    const file = fileInput.files[0];
+    const chunkSize = 16384;
+    let offset = 0;
+
+    // Send metadata JSON first
+    dataChannel.send(JSON.stringify({ name: file.name, size: file.size }));
+
+    const reader = new FileReader();
+
+    reader.onload = e => {
+      dataChannel.send(e.target.result);
+      offset += e.target.result.byteLength;
+      if (offset < file.size) {
+        readSlice(offset);
+      } else {
+        appendLog(`File sent: ${file.name}`);
+      }
+    };
+
+    reader.onerror = e => alert('File read error: ' + e.target.error);
+
+    function readSlice(o) {
+      const slice = file.slice(o, o + chunkSize);
+      reader.readAsArrayBuffer(slice);
+    }
+
+    readSlice(0);
+  };
+
+  function appendLog(msg) {
+    receivedFiles.textContent += msg + '\n';
+    receivedFiles.scrollTop = receivedFiles.scrollHeight;
+  }
+
+  createOfferAnswerBtn.onclick = createOfferAnswer;
+  setRemoteBtn.onclick = setRemoteDescription;
+
+  // Dark mode toggle
+  const toggle = document.getElementById('darkToggle');
+  toggle.onclick = () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('dark', document.body.classList.contains('dark'));
+  };
+  if (localStorage.getItem('dark') === 'true') {
+    document.body.classList.add('dark');
+  }
+</script>
 </body>
 </html>
