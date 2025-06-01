@@ -1,74 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple WebRTC App</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-      background: var(--bg);
-      color: var(--fg);
-      transition: background 0.3s, color 0.3s;
-    }
-    :root {
-      --bg: #f0f0f0;
-      --fg: #222;
-      --btn-bg: #007bff;
-      --btn-fg: #fff;
-    }
-    body.dark {
-      --bg: #121212;
-      --fg: #eee;
-      --btn-bg: #3399ff;
-      --btn-fg: #222;
-    }
-    a {
-      text-decoration: none;
-      color: var(--btn-bg);
-      font-weight: bold;
-      display: block;
-      margin: 15px 0;
-      font-size: 1.2rem;
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    button {
-      padding: 8px 12px;
-      background: var(--btn-bg);
-      color: var(--btn-fg);
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Welcome to Simple WebRTC</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 40px;
+  }
+  .container {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .card {
+    cursor: pointer;
+    width: 260px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 1px 1px 8px #aaa;
+    transition: box-shadow 0.3s ease;
+  }
+  .card:hover {
+    box-shadow: 3px 3px 15px #777;
+  }
+  .card img {
+    width: 100%;
+    height: 140px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+  .card button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    background-color: #0078d7;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+  }
+  .card button:hover {
+    background-color: #005fa3;
+  }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Simple WebRTC App</h1>
-    <button id="darkToggle">Toggle Dark Mode</button>
-  </header>
-  <nav>
-    <a href="audio.html">Audio Stream</a>
-    <a href="chat.html">Text Chat + Emoji</a>
-    <a href="file.html">File Sharing</a>
-  </nav>
+  <h1>Simple WebRTC Demo</h1>
+  <div class="container">
 
-  <script>
-    const toggle = document.getElementById('darkToggle');
-    const body = document.body;
-    toggle.onclick = () => {
-      body.classList.toggle('dark');
-      localStorage.setItem('dark', body.classList.contains('dark'));
-    };
-    if(localStorage.getItem('dark') === 'true'){
-      body.classList.add('dark');
-    }
-  </script>
+    <div class="card">
+      <img src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fwuyv3nrlrslhsjd12oz8.png" alt="Audio Call" />
+      <button onclick="goToSDP('audio.html')">Audio Call</button>
+    </div>
+
+    <div class="card">
+      <img src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fkhdlnvt6ygfpjcsjdv9z.jpg" alt="File Transfer" />
+      <button onclick="goToSDP('file.html')">File Transfer</button>
+    </div>
+
+    <div class="card">
+      <img src="https://www.scaledrone.com/blog/content/images/2018/06/webrtc-text-chat@2x.png" alt="Text Chat" />
+      <button onclick="goToSDP('chat.html')">Text Chat</button>
+    </div>
+
+  </div>
+
+<script>
+  function goToSDP(targetPage) {
+    window.location.href = `sdp.html?target=${encodeURIComponent(targetPage)}`;
+  }
+</script>
 </body>
 </html>
